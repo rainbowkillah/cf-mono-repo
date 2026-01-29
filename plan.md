@@ -1,492 +1,413 @@
-# Cloudflare Workers AI Multi-Tenant Monorepo — plan.md
+# Cloudflare Workers Primitive Architecture Plan
+https://github.com/users/rainbowkillah/projects/12
 
-## 0) Executive Summary
 
-We are building a multi-tenant Cloudflare Workers AI platform inside a monorepo. It must support:
-- Workers AI (model inference), AI Gateway (policy/routing/observability), Vectorize (embeddings + retrieval), AI Search (RAG UX), KV, Durable Objects (sessions/state), streaming chat, “tool”/function execution, TTS contract (and optional implementation depending on provider constraints), metrics + QA gates, and repeatable deployments per tenant/account.
+## 1) Architecture mapped to Cloudflare primitives
 
-We also build a developer experience layer: an **Nx plugin** that provides generators/executors comparable to Cloudflare’s `wrangler` + `create-cloudflare` so new apps/services/tenants can be created and deployed consistently.
+### 1.1 Request lifecycle overview
+1) **HTTP request enters Worker** (`apps/worker-api`).
+2) **Tenant resolution middleware** determines tenant boundary before any storage/AI call.
+3) **Policy enforcement** (rate limits, feature flags, quotas, CORS) via DO + KV.
+4) **Model/Embedding calls** routed through **AI Gateway** to **Workers AI**.
+5) **Stateful/session ops** via **Durable Objects**.
+6) **Cache + metadata** via **KV**.
+7) **Retrieval** via **Vectorize** (tenant-scoped index).
+8) **Response streaming** to client with trace ids.
 
-**Hard requirements:**
-- Tenant isolation is non-negotiable.
-- No secrets in repo.
-- Every milestone ships runnable code + tests + measurable success criteria.
-- Everything is repeatable: scaffold -> dev -> test -> deploy per tenant.
+### 1.2 Primitive mapping (direct)
+- **Workers AI**
+  - Text generation and embeddings.
+  - All calls routed through AI Gateway for policy + observability.
+- **AI Gateway**
+  - Model routing, budget/limit policy, request logging.
+  - Enforces per-tenant model allow-lists and token budgets.
+- **Vectorize**
+  - Per-tenant index for embeddings and retrieval.
+  - Metadata stored with tenantId, docId, chunkId, source.
+- **KV**
+  - Tenant configuration cache, prompt versions, feature flags, lightweight caches.
+- **Durable Objects**
+  - Session state for chat.
+  - Rate limiter and per-tenant counters.
+  - Ingestion job coordination (optional).
 
----
-
-## 1) Non-Negotiable Constraints and Guardrails
-
-### 1.1 Tenant isolation rules
-- Every request must resolve tenant context BEFORE any storage/AI call.
-- All storage bindings must be tenant-scoped:
-  - KV namespaces per tenant (or tenant prefix strategy if required).
-  - Durable Object IDs must include tenant.
-  - Vectorize index must be tenant-scoped.
-  - Any optional storage (R2/D1) must be tenant-scoped if added later.
-- No cross-tenant reads/writes unless explicit “shared” policy exists.
-
-### 1.2 Security + compliance defaults
-- Strict request validation on every endpoint.
-- CORS locked down per tenant.
-- Rate limiting per tenant per IP/user key.
-- Redaction in logs (no PII by default; no tokens or raw prompts in logs unless explicitly enabled).
-
-### 1.3 Operational clarity
-- Observability is a first-class deliverable:
-  - metrics definitions, logging schema, dashboards/alerts suggestions, runbooks.
-- Every component has failure mode documentation.
-
----
-
-## 2) Target Architecture (High-level)
-
-### 2.1 Core apps (Workers)
-1) **worker-api**: Primary API surface
-   - `/chat` (streaming)
-   - `/search` (RAG UX)
-   - `/tools/execute` (function/tool dispatcher)
-   - `/ingest` (optional or separated)
-   - `/tts` (contract + adapter boundary)
-2) **ingest-worker** (optional separation)
-   - Document ingestion pipeline: chunk -> embed -> Vectorize upsert
-
-### 2.2 Shared packages
-- `packages/core`: tenant resolution, middleware, schemas, errors
-- `packages/storage`: KV/DO/Vectorize adapters (tenant-aware)
-- `packages/rag`: chunking, prompting, citations, safety filters
-- `packages/observability`: structured logs + metrics helpers
-- `packages/testing`: fixtures, harness, local runners
-
-### 2.3 Key primitives mapping
-- **Durable Objects**: sessions, rate limiting, streaming coordination (if needed)
-- **KV**: lightweight cache, tenant metadata, prompt versions, feature flags
-- **Vectorize**: embeddings store + retrieval
-- **Workers AI**: inference + embeddings (if using that route)
-- **AI Gateway**: policy + routing + observability for model calls
+### 1.3 Core components
+- `apps/worker-api`
+  - `/chat` streaming chat
+  - `/search` RAG-style search
+  - `/tools/execute` tool/agent execution
+  - `/ingest` (optional) or split into `apps/ingest-worker`
+- `apps/ingest-worker` (optional separation)
+  - chunking + embeddings + Vectorize upsert
+- `packages/core`
+  - tenant resolution, policy checks, schemas, errors
+- `packages/storage`
+  - KV/DO/Vectorize adapters with tenant enforcement
+- `packages/ai`
+  - AI Gateway client wrapper, model routing
+- `packages/rag`
+  - chunking, retrieval assembly, prompt/citations
+- `packages/observability`
+  - structured logs and metrics helpers
 
 ---
 
-## 3) Repo & Tenant Layout
+## 2) Interfaces and tenancy boundaries
 
-### 3.1 Proposed folder structure
-- `/apps/worker-api`
-- `/apps/ingest-worker` (optional)
-- `/packages/*`
-- `/tenants/<tenant-id>/`
-  - `tenant.config.json`
-  - `wrangler.jsonc`
-  - `policies.json` (optional)
-  - `prompts/*.md` (optional)
-- `/docs/*`
-- `/scripts/*`
-- `/tests/*`
+### 2.1 Tenant boundary definition
+**Tenant boundary** is the minimal isolation unit. No access across tenants unless explicitly configured as shared. All storage keys, DO IDs, Vectorize indexes, and AI policy are tenant-scoped.
 
-### 3.2 Tenant config (minimum fields)
-- `tenantId`
-- `accountId` (Cloudflare account association if required)
-- `hostnameMapping` (optional)
-- `ai` policy (models, gateway routes, budgets)
-- `vectorize` index name(s)
-- `kv` namespace mappings
-- `do` class + binding names
-- `cors` origins
-- `featureFlags`
+### 2.2 Tenant resolution contract
+- **Inputs:** header `x-tenant-id`, host name, or API key mapping.
+- **Output:** `TenantContext` attached to request.
 
----
+```ts
+export type TenantContext = {
+  tenantId: string;
+  accountId?: string;
+  aiGatewayRoute: string;
+  aiModels: {
+    chat: string;
+    embeddings: string;
+  };
+  kvNamespace: string;
+  vectorizeIndex: string;
+  doSessionName: string;
+  rateLimit: {
+    perMinute: number;
+    burst: number;
+  };
+  featureFlags: Record<string, boolean>;
+};
+```
 
-## 4) Blockers & Unknowns (Tracked Early)
+### 2.3 Storage adapters (enforced tenancy)
+- **KV adapter**
+  - `get(tenantId, key)`, `put(tenantId, key, value)`
+  - Internally prefixes key with `tenantId:` if sharing a namespace.
+- **Vectorize adapter**
+  - `query(tenantId, embedding, options)`
+  - `upsert(tenantId, vectors[])`
+  - Uses tenant-scoped index or metadata filters.
+- **DO session adapter**
+  - `getSession(tenantId, sessionId)`
+  - `appendMessage(tenantId, sessionId, message)`
+  - DO ID must encode `tenantId`.
 
-This project touches APIs that evolve. These are the “don’t hallucinate” checkpoints.
+### 2.4 AI interface
+- **Gateway-first**: all Workers AI calls must go through AI Gateway wrapper.
+- **Chat inference**
+  - `generateChat(tenantId, messages, options)`
+- **Embedding generation**
+  - `generateEmbedding(tenantId, text[])`
 
-### 4.1 Cloudflare AI Gateway specifics
-**Unknowns/Blockers**
-- Exact configuration required to route Workers AI calls via AI Gateway in Workers runtime.
-- How usage metrics are exposed/collected and best practice logging.
-**Action**
-- Create a “Gateway Validation Spike” early (Milestone M2) that proves:
-  - calls go through gateway
-  - we can capture request_id, latency, and token usage signals (where available)
-
-### 4.2 TTS feasibility
-**Unknowns/Blockers**
-- Cloudflare-native TTS availability and best option.
-**Action**
-- Build TTS as an adapter boundary:
-  - Contract exists even if implementation is stubbed
-  - Later plug a provider (Cloudflare-native if/when supported or external service)
-
-### 4.3 Local dev parity
-**Unknowns/Blockers**
-- How much of Vectorize/Workers AI can be simulated locally.
-**Action**
-- Define a local harness:
-  - unit tests fully local
-  - integration tests use staging resources per tenant where needed (CI gated)
-
-### 4.4 Multi-account deployment
-**Unknowns/Blockers**
-- wrangler auth context switching across accounts/tenants.
-**Action**
-- Deployment scripts must support:
-  - deploying by tenant folder (each with its own wrangler.jsonc)
-  - “deploy all tenants” with explicit order and failure handling
+### 2.5 Multi-tenancy enforcement points
+- Tenant resolution middleware runs before any handler.
+- Shared adapters must require `tenantId` in method signatures.
+- All DO IDs must include `tenantId`.
+- Vectorize indexes are per-tenant; if shared, enforce metadata filter `tenantId`.
+- AI Gateway policy uses tenant-scoped routes.
 
 ---
 
-## 5) Milestones (Actions, Subactions, Exit Criteria)
+## 3) Milestones with acceptance criteria
 
-> Every milestone ends with:
-> 1) runnable demo steps
-> 2) tests passing
-> 3) metrics/logs emitted
-> 4) short Milestone Report in `/docs/reports/`
+### M0 — Foundation ([Issues #3-#14](https://github.com/rainbowkillah/cloudflare-mono-repo/issues?q=is%3Aissue+label%3AM0))
+**Deliverables**
+- [#3](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/3) Create monorepo skeleton (apps/packages/tenants/docs/scripts/tests)
+- [#4](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/4) Set up TypeScript baseline + tsconfig for Workers runtime
+- [#5](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/5) Configure ESLint + Prettier
+- [#6](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/6) Set up Vitest test runner
+- [#7](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/7) Create project.json for each apps/* and packages/* target
+- [#8](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/8) Implement tenant resolution middleware (header/hostname priority) **CRITICAL**
+- [#9](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/9) Define tenant.config.json schema + Zod validation
+- [#10](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/10) Create core error handling + response envelopes
+- [#11](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/11) Set up local dev with wrangler dev
+- [#12](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/12) Create hello endpoint per tenant + smoke tests
+- [#13](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/13) Define Env typings source of truth (packages/core/src/env.ts)
+- [#14](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/14) Document wrangler version, ESM format decision
 
----
-
-### Milestone M0 — Foundation & Scaffolding
-**Goal:** Monorepo boots cleanly; tenant resolution exists; baseline tooling + docs.
-
-**Actions**
-1. Create monorepo skeleton
-   - apps/packages/tenants/docs/scripts/tests
-2. Tooling setup
-   - TypeScript baseline + tsconfig
-   - lint + format
-   - unit test runner
-3. Tenant resolution middleware (MANDATORY)
-   - Resolve tenant via header/hostname (configurable priority)
-   - Attach tenant context object to request lifecycle
-4. Core error handling + response envelopes
-5. Local dev boot
-   - hello endpoint per tenant
-   - smoke tests
-
-**Exit criteria**
-- `install -> build -> test` passes
-- Local dev server runs for at least one worker app
-- Unit tests prove tenant resolution + rejection when missing
-
-**Blockers**
-- None expected; if toolchain issues, lock versions and document.
+**Acceptance criteria**
+- Local dev can resolve tenant and return `/health` response.
+- Any request missing tenant is rejected.
+- Unit tests cover tenant resolution and adapter key prefixing.
 
 ---
 
-### Milestone M1 — Streaming Chat + Sessions (DO) + KV cache
-**Goal:** `/chat` streaming works; sessions are tenant-isolated; rate limiting exists.
+### M1 — Chat + Sessions ([Issues #15-#24](https://github.com/rainbowkillah/cloudflare-mono-repo/issues?q=is%3Aissue+label%3AM1))
+**Deliverables**
+- [#15](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/15) Build /chat endpoint with request schema
+- [#16](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/16) Define streaming response contract (SSE vs chunked)
+- [#17](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/17) Implement Durable Object session store (tenant-scoped)
+- [#18](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/18) Add conversation history with retention policy
+- [#19](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/19) Implement KV cache layer (tenant-scoped keys)
+- [#20](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/20) Implement DO-based rate limiter (per tenant + per IP/user)
+- [#21](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/21) Define rate limit keying strategy (tenant+user+ip)
+- [#22](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/22) Create streaming behavior tests
+- [#23](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/23) Create session isolation tests
+- [#24](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/24) Create rate limit enforcement tests
 
-**Actions**
-1. Build `/chat` endpoint
-   - Request schema: message list, session id, options
-   - Streaming response contract (SSE or chunked)
-2. Durable Object session store
-   - Tenant-scoped session IDs
-   - Conversation history with retention policy
-3. KV cache layer
-   - Tenant-scoped cache keys
-   - Cache policy rules
-4. Rate limiting
-   - DO-based limiter: per tenant + per IP/user
-5. Tests
-   - streaming behavior test (contract-level)
-   - session isolation test
-   - rate limit enforcement test
-
-**Exit criteria**
-- Streaming response works end-to-end
-- Sessions persist and are isolated per tenant
-- Rate limits demonstrably enforced
-- Logs include request_id + tenant + route + latency
-
-**Blockers**
-- Streaming edge cases in runtime; mitigate by defining a strict response protocol.
+**Acceptance criteria**
+- Session messages persist for same tenant/session.
+- Cross-tenant session access is denied.
+- Rate limiter rejects over-limit requests with trace id.
 
 ---
 
-### Milestone M2 — AI Gateway Integration + Model Routing Policy
-**Goal:** All model calls go through AI Gateway; policies are enforceable.
+### M2 — AI Gateway ([Issues #25-#31](https://github.com/rainbowkillah/cloudflare-mono-repo/issues?q=is%3Aissue+label%3AM2))
+**Deliverables**
+- [#25](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/25) Gateway integration spike - prove connectivity + configuration **CRITICAL SPIKE**
+- [#26](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/26) Implement model routing (tenant config chooses models)
+- [#27](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/27) Add per-route model override options
+- [#28](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/28) Implement budget/limits hooks (token limits)
+- [#29](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/29) Add observability hooks (latency, status, tokens in/out)
+- [#30](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/30) Document AI Gateway integration in docs/ai-gateway.md
+- [#31](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/31) Document fallback behavior for API changes
 
-**Actions**
-1. Gateway integration spike
-   - Prove connectivity + configuration
-2. Model routing
-   - Tenant config chooses model(s)
-   - Per-route override options
-3. Budget/limits hooks
-   - request-level token limits where possible
-   - rate limit integration
-4. Observability hooks
-   - record: latency, status, tokens in/out (if available)
-5. Docs
-   - `docs/ai-gateway.md` how we route and why
-
-**Exit criteria**
-- Gateway used for all AI calls
-- Tenant-specific routing works
-- Usage signals recorded (as available)
-- Fallback behavior documented
-
-**Blockers**
-- API details may change; if so, freeze on known-working config and document.
+**Acceptance criteria**
+- All model calls pass through AI Gateway (verified by gateway logs).
+- Tenant-specific model selection works.
+- Usage metrics (latency, tokens if available) are recorded.
 
 ---
 
-### Milestone M3 — Embeddings + Vectorize + Retrieval + RAG assembly
-**Goal:** Ingest documents, retrieve relevant chunks, generate RAG responses with citations.
+### M3 — Embeddings + Vectorize + RAG Assembly ([Issues #32-#45](https://github.com/rainbowkillah/cloudflare-mono-repo/issues?q=is%3Aissue+label%3AM3))
+**Deliverables**
+- [#32](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/32) Implement ingestion pipeline (chunking strategy)
+- [#33](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/33) Implement embedding generation
+- [#34](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/34) Implement Vectorize upsert with metadata
+- [#35](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/35) Implement retrieval pipeline (query embedding)
+- [#36](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/36) Implement Vectorize search
+- [#37](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/37) Add optional rerank hook interface
+- [#38](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/38) Implement RAG response assembly with prompt template
+- [#39](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/39) Add citations to RAG responses
+- [#40](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/40) Implement basic safety filters
+- [#41](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/41) Ensure Vectorize indexes are tenant-scoped **CRITICAL**
+- [#42](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/42) Create deterministic fixture retrieval tests
+- [#43](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/43) Create tenant isolation tests for Vectorize
+- [#44](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/44) Create metadata integrity tests
+- [#45](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/45) Document Vectorize local emulation limitations + staging strategy
 
-**Actions**
-1. Ingestion pipeline
-   - chunking strategy (size, overlap)
-   - embedding generation
-   - Vectorize upsert with metadata
-2. Retrieval pipeline
-   - query embedding
-   - Vectorize search
-   - optional rerank hook (interface only if not available)
-3. RAG response assembly
-   - prompt template with citations
-   - safety filters (basic)
-4. Tenant-scoped Vectorize indexes
-5. Tests
-   - deterministic fixture retrieval tests
-   - tenant isolation for Vectorize
-   - metadata integrity tests
-
-**Exit criteria**
-- RAG returns answers with citations/metadata
-- Ingestion + retrieval works per tenant
-- Retrieval tested with fixtures
-
-**Blockers**
-- Local simulation limitations; use staging for integration tests if needed.
+**Acceptance criteria**
+- Ingested docs are retrievable for correct tenant only.
+- Retrieval returns deterministic results with fixture docs.
+- Vectorize queries fail closed without tenant context.
 
 ---
 
-### Milestone M4 — AI Search UX Endpoint
-**Goal:** `/search` delivers structured results optimized for search experience.
+### M4 — AI Search UX Endpoint ([Issues #46-#53](https://github.com/rainbowkillah/cloudflare-mono-repo/issues?q=is%3Aissue+label%3AM4))
+**Deliverables**
+- [#46](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/46) Build /search endpoint with output schema
+- [#47](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/47) Define output schema: answer + sources + confidence + follow-ups
+- [#48](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/48) Implement query rewriting / intent detection
+- [#49](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/49) Implement caching for common queries (tenant-scoped KV)
+- [#50](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/50) Add search latency metrics
+- [#51](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/51) Add cache hit rate metrics
+- [#52](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/52) Create schema validation tests
+- [#53](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/53) Create caching behavior tests
 
-**Actions**
-1. Build `/search`
-   - output schema: answer + sources + confidence notes + recommended follow-ups
-2. Query rewriting / intent detection (lightweight)
-3. Caching for common queries
-4. Metrics
-   - search latency
-   - cache hit rate
-   - retrieval count
-5. Tests
-   - schema validation tests
-   - caching behavior tests
-
-**Exit criteria**
-- Stable structured output
-- Measurable latency improvements with cache
-- Clear “why these results” transparency fields
+**Acceptance criteria**
+- `/search` returns answer + sources + confidence fields.
+- Citations trace back to Vectorize metadata.
+- Cache hit reduces latency for repeat queries.
 
 ---
 
-### Milestone M5 — Tooling / Generative Functions (Function Calling)
-**Goal:** A controlled tool executor system: predictable, logged, tenant-safe.
+### M5 — Tool/Function Execution System ([Issues #54-#66](https://github.com/rainbowkillah/cloudflare-mono-repo/issues?q=is%3Aissue+label%3AM5))
+**Deliverables**
+- [#54](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/54) Define tool schema (JSON schema for name, args, permissions)
+- [#55](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/55) Implement tool dispatcher with registry
+- [#56](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/56) Implement validation + auth/permission gating
+- [#57](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/57) Implement tool: summarize
+- [#58](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/58) Implement tool: extract entities
+- [#59](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/59) Implement tool: classify intent
+- [#60](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/60) Implement tool: tag/chunk docs
+- [#61](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/61) Implement tool: ingest docs
+- [#62](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/62) Implement audit logging (tool name + args hash + outcome)
+- [#63](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/63) Create permission tests
+- [#64](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/64) Create injection guard tests
+- [#65](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/65) Create tool correctness tests
+- [#66](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/66) Document tool contracts
 
-**Actions**
-1. Define tool schema
-   - JSON schema for tool name, args, permissions
-2. Tool dispatcher
-   - registry of tools
-   - validation + auth/permission gating
-3. Implement at least 5 tools
-   - summarize
-   - extract entities
-   - classify intent
-   - tag/chunk docs
-   - ingest docs
-4. Audit logging
-   - tool name + args hash + outcome
-5. Tests
-   - permission tests
-   - injection guard tests
-   - tool correctness tests
-
-**Exit criteria**
-- Tools run safely and predictably
-- Audit logs exist and are tenant-bound
-- Tool contracts documented
+**Acceptance criteria**
+- Invalid tool calls rejected with explicit error.
+- Each tool execution logged with tenant + request id.
+- Tool registry supports enable/disable per tenant.
 
 ---
 
-### Milestone M6 — TTS Contract + Adapter Boundary
-**Goal:** TTS endpoint exists with a stable API; implementation pluggable.
+### M6 — TTS Adapter Boundary ([Issues #67-#73](https://github.com/rainbowkillah/cloudflare-mono-repo/issues?q=is%3Aissue+label%3AM6))
+**Deliverables**
+- [#67](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/67) Define /tts contract (input: text, voice, format, streaming)
+- [#68](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/68) Define output contract (audio stream or job id)
+- [#69](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/69) Implement adapter interface
+- [#70](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/70) Implement stub with 'not enabled' behavior
+- [#71](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/71) If feasible: implement provider adapter
+- [#72](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/72) Create contract tests
+- [#73](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/73) Create stub behavior tests
 
-**Actions**
-1. Define `/tts` contract
-   - input: text, voice, format, streaming flag
-   - output: audio stream or job id
-2. Implement adapter interface
-3. Provide stub implementation with clear “not enabled” behavior
-4. If feasible: implement provider adapter
-5. Tests
-   - contract tests
-   - stub behavior tests
-
-**Exit criteria**
-- Contract documented and stable
-- No coupling to a single provider in core code
+**Acceptance criteria**
+- TTS endpoint exists with clear contract.
+- Adapter interface allows future provider integration.
+- Stub implementation returns appropriate error when not configured.
 
 ---
 
-### Milestone M7 — Observability, Metrics, QA Gates, Load Tests
-**Goal:** We can measure, regress, and operate this thing like adults.
+### M7 — Observability, Metrics, QA Gates ([Issues #74-#85](https://github.com/rainbowkillah/cloudflare-mono-repo/issues?q=is%3Aissue+label%3AM7))
+**Deliverables**
+- [#74](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/74) Finalize logging schema with required fields
+- [#75](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/75) Define correlation IDs and tracing strategy
+- [#76](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/76) Implement metrics helpers
+- [#77](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/77) Implement required metrics
+- [#78](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/78) Add cost monitoring metrics (token usage)
+- [#79](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/79) Create dashboards/alerts suggestions document
+- [#80](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/80) Create load test scripts
+- [#81](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/81) Create retrieval quality 'smoke score' regression suite
+- [#82](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/82) Create streaming stability tests
+- [#83](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/83) Set up CI gates (lint, typecheck, unit, integration)
+- [#84](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/84) Document failure mode template
+- [#85](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/85) Document external dependency failure strategies
 
-**Actions**
-1. Finalize logging schema
-2. Implement metrics helpers and required metrics
-3. Add dashboards/alerts suggestions (document)
-4. Load test scripts
-5. Regression suite
-   - retrieval quality “smoke score”
-   - streaming stability
-6. CI gates
-   - lint, typecheck, unit, integration
-
-**Exit criteria**
-- Metrics emitted for chat/search/retrieval/tools
-- CI gates enforce quality
-- Load test runnable and documented
-
----
-
-### Milestone M8 — Repeatable Deployment per Tenant + Drift Detection
-**Goal:** One-command deploy per tenant; multi-tenant deploy-all; drift detection.
-
-**Actions**
-1. Deployment scripts
-   - deploy one tenant
-   - deploy all tenants
-   - environment selection (dev/stage/prod)
-2. Config validation
-   - fail fast if missing bindings
-3. Drift detection
-   - compare expected bindings vs deployed config (best-effort)
-4. Runbooks
-   - deploy rollback guidance
-   - incident response notes
-
-**Exit criteria**
-- Deploy per tenant is consistent and repeatable
-- Docs allow fresh clone -> deploy without guesswork
+**Acceptance criteria**
+- Logs include tenantId, requestId, latency, route.
+- Required metrics are emitted and can be queried.
+- Load tests pass with defined thresholds.
+- CI gates prevent broken code from merging.
 
 ---
 
-## 6) Nx Generator Plan (Comparable to Wrangler + create-cloudflare)
+### M8 — Deployment Automation ([Issues #86-#93](https://github.com/rainbowkillah/cloudflare-mono-repo/issues?q=is%3Aissue+label%3AM8))
+**Deliverables**
+- [#86](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/86) Create deployment script: deploy one tenant
+- [#87](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/87) Create deployment script: deploy all tenants
+- [#88](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/88) Add environment selection (dev/stage/prod)
+- [#89](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/89) Implement config validation (fail fast)
+- [#90](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/90) Implement drift detection (expected vs deployed)
+- [#91](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/91) Define multi-account credential strategy **CRITICAL**
+- [#92](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/92) Create deploy rollback runbook
+- [#93](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/93) Create incident response runbook
 
-This section is the “/claude architecture + /gemini quality gate” version of the Nx plugin plan.
-
-### 6.1 Goals of Nx plugin
-Provide a single consistent workflow to:
-- scaffold a new Worker app (like `create-cloudflare`)
-- configure bindings for KV/DO/Vectorize/AI Gateway (like wrangler config management)
-- scaffold a new tenant (tenant folder + wrangler.jsonc + config)
-- run dev/test/deploy commands through Nx executors
-- support multi-account context cleanly
-
-### 6.2 Nx plugin deliverables
-Create `packages/nx-cloudflare/` (Nx plugin)
-- **Generators**
-  1) `init`: add baseline config to repo (workspace config, default targets)
-  2) `worker`: scaffold a Worker app with standard endpoints + middleware
-  3) `tenant`: scaffold tenant folder + config + wrangler.jsonc template
-  4) `binding`: add KV/DO/Vectorize/AI bindings to tenant + app config
-  5) `rag-module`: add ingestion/retrieval wiring + sample prompts
-- **Executors**
-  1) `dev`: runs wrangler dev for a selected tenant/app
-  2) `test`: runs unit/integration tests; optionally uses staging for Vectorize/AI
-  3) `deploy`: deploy one tenant (wrangler deploy)
-  4) `deployAll`: loops tenants with safe failure behavior
-  5) `typecheck/lint`: standard
-
-### 6.3 Generator behavior specs (what it should produce)
-**worker generator outputs**
-- `apps/<name>/src/index.ts` with:
-  - tenant resolution middleware
-  - basic routes: /health, /chat skeleton
-- `apps/<name>/project.json` with Nx targets for dev/test/deploy
-- `apps/<name>/README.md` “how to run”
-
-**tenant generator outputs**
-- `tenants/<tenant-id>/tenant.config.json`
-- `tenants/<tenant-id>/wrangler.jsonc`
-- optional `policies.json`, `prompts/`
-
-**binding generator outputs**
-- Updates tenant wrangler.jsonc with required bindings
-- Updates shared typing in `packages/core` for Env bindings
-- Optionally adds DO class skeleton
-
-### 6.4 Compatibility mapping: Wrangler / create-cloudflare → Nx
-- `create-cloudflare` ~ `nx g nx-cloudflare:worker`
-- `wrangler init` ~ `nx g nx-cloudflare:init`
-- `wrangler dev` ~ `nx dev <project> --tenant=<id>`
-- `wrangler deploy` ~ `nx deploy <project> --tenant=<id>`
-- multi-tenant deploy-all ~ `nx deployAll <project>`
-
-### 6.5 Nx plugin action plan (Milestone NX-1..NX-4)
-
-#### NX-1 — Plugin bootstrap
-Actions:
-- create Nx plugin package skeleton
-- implement `init` generator
-- add shared utilities: parse tenant config, update JSONC, validate
-Exit criteria:
-- `nx g nx-cloudflare:init` runs cleanly and adds baseline targets
-
-Blockers:
-- JSONC editing reliably (need robust JSONC parser/writer)
-
-#### NX-2 — worker generator
-Actions:
-- scaffold worker-api template with tenant middleware + /health
-- add project.json targets for dev/test/deploy
-Exit criteria:
-- new worker app created and runs with `nx dev`
-
-#### NX-3 — tenant generator
-Actions:
-- scaffold tenant folder, config, wrangler.jsonc template
-- add tenant registry file (optional) for discoverability
-Exit criteria:
-- new tenant scaffold deploys with existing worker
-
-#### NX-4 — bindings + deployAll
-Actions:
-- generator to add bindings and update Env typing
-- executor to deployAll tenants safely
-Exit criteria:
-- `nx deployAll` works and reports per tenant status
-
-### 6.6 Nx plugin quality gates (/gemini brain)
-- “dry-run” mode for generators
-- validation: generated files compile
-- snapshot tests for generator outputs
-- idempotency checks (re-running doesn’t duplicate)
-- “safe write” policy for config updates
+**Acceptance criteria**
+- `deploy <tenant>` works without manual config edits.
+- `deploy-all` fails safely per tenant and reports status.
 
 ---
 
-## 7) Definition of Done (Global)
+## Nx Plugin Development (Issues #94-#117)
 
-Project is “done enough to be dangerous” when:
-- New tenant can be created in minutes via Nx generator.
-- Streaming chat works with sessions and rate limits.
-- RAG ingestion + retrieval works with citations.
-- Tools/functions operate with audit logs.
-- Metrics exist and CI gates enforce quality.
-- Deployments are repeatable for each tenant/account.
+### NX-1 — Plugin Foundation ([Issues #94-#99](https://github.com/rainbowkillah/cloudflare-mono-repo/issues?q=is%3Aissue+label%3Anx))
+- [#94](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/94) Create Nx plugin package skeleton (packages/nx-cloudflare)
+- [#95](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/95) Implement init generator
+- [#96](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/96) Add shared utilities: parse tenant config
+- [#97](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/97) Add shared utilities: update JSONC (use jsonc-parser)
+- [#98](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/98) Add shared utilities: validate config
+- [#99](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/99) Set up plugin testing infrastructure
+
+### NX-2 — Worker Generator ([Issues #100-#104](https://github.com/rainbowkillah/cloudflare-mono-repo/issues?q=is%3Aissue+label%3Anx))
+- [#100](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/100) Scaffold worker-api template with tenant middleware
+- [#101](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/101) Add /health endpoint to template
+- [#102](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/102) Add project.json targets for dev/test/deploy
+- [#103](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/103) Define executor-to-wrangler mapping
+- [#104](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/104) Create worker generator tests
+
+### NX-3 — Tenant Generator ([Issues #105-#109](https://github.com/rainbowkillah/cloudflare-mono-repo/issues?q=is%3Aissue+label%3Anx))
+- [#105](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/105) Scaffold tenant folder structure
+- [#106](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/106) Generate tenant.config.json template
+- [#107](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/107) Generate wrangler.jsonc template
+- [#108](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/108) Add tenant registry file for discoverability
+- [#109](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/109) Create tenant generator tests
+
+### NX-4 — Binding & Deploy Generators ([Issues #110-#117](https://github.com/rainbowkillah/cloudflare-mono-repo/issues?q=is%3Aissue+label%3Anx))
+- [#110](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/110) Implement binding generator (KV/DO/Vectorize/AI)
+- [#111](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/111) Update Env typing from single canonical file
+- [#112](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/112) Add DO class skeleton generation
+- [#113](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/113) Implement deployAll executor
+- [#114](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/114) Add concurrency policy to deployAll
+- [#115](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/115) Add dry-run mode to deployAll
+- [#116](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/116) Add continue-on-error flag to deployAll
+- [#117](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/117) Create binding generator/executor tests
 
 ---
 
-## 8) Next Actions (Immediate)
+## Review Items ([Issues #118-#124](https://github.com/rainbowkillah/cloudflare-mono-repo/issues?q=is%3Aissue+label%3Areview))
+- [#118](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/118) Add explicit milestone dependency mapping
+- [#119](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/119) Quantify exit criteria with specific metrics
+- [#120](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/120) Define E2E testing layer
+- [#121](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/121) Add security testing activities
+- [#122](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/122) Establish performance baselines
+- [#123](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/123) Define AuthN/AuthZ strategy
+- [#124](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/124) Pick logging/metrics sink
 
-1) Implement M0 repo scaffolding + tenant middleware
-2) Write `docs/architecture.md`, `docs/tenancy.md`, `docs/metrics.md`, `docs/testing.md`
-3) Start NX-1 plugin bootstrap in parallel (it will pay off fast)
+---
+
+## 4) Unknowns and validation experiments
+
+### U1 — AI Gateway routing specifics
+**Unknown**
+- Exact header/config requirements for routing Workers AI calls via AI Gateway in Workers runtime.
+
+**Experiment**
+- Build a minimal Worker calling Workers AI via Gateway.
+- Validate that gateway logs show request ids, latency, and usage.
+
+**Success signal**
+- Gateway dashboard displays requests matching test tenant.
+
+---
+
+### U2 — Workers AI embeddings + Vectorize latency
+**Unknown**
+- End-to-end latency for embed → Vectorize upsert and query at scale.
+
+**Experiment**
+- Ingest 1k docs and benchmark retrieval latency.
+- Capture P50/P95 latency with/without cache.
+
+**Success signal**
+- P95 retrieval latency within acceptable target (define once SLOs set).
+
+---
+
+### U3 — Durable Object session throughput
+**Unknown**
+- DO performance under concurrent streaming chat sessions.
+
+**Experiment**
+- Simulate 100 concurrent sessions with streaming writes.
+- Measure contention and response stability.
+
+**Success signal**
+- No data loss; latency stable under concurrent load.
+
+---
+
+### U4 — Multi-tenant Vectorize index strategy
+**Unknown**
+- Whether separate indexes per tenant or single index with metadata filter is best.
+
+**Experiment**
+- Compare cost/latency between per-tenant indexes vs shared index + filter.
+
+**Success signal**
+- Choose approach with best cost/latency and acceptable isolation guarantees.
+
+---
+
+### U5 — KV consistency for feature flags
+**Unknown**
+- KV propagation delay impact on feature flags and routing decisions.
+
+**Experiment**
+- Flip flag and measure propagation time across regions.
+
+**Success signal**
+- Documented max delay and mitigation strategy (fallback defaults).
+
+---
+
+## 5) Deliverable checklist
+- `apps/worker-api` with tenancy enforcement.
+- `packages/core`, `packages/storage`, `packages/ai`, `packages/rag`.
+- `docs/architecture.md` and `docs/tenancy.md`.
+- `plan.md` kept as source of truth for milestones.
 

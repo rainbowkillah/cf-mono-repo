@@ -1,0 +1,26 @@
+name = "rainbowsmokeofficial-worker-api"
+main = "../apps/worker-api/src/index.ts"
+compatibility_date = "2025-01-01"
+
+[vars]
+TENANT_ID = "rainbowsmokeofficial"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[[vectorize]]
+binding = "VECTORS"
+index_name = "rainbowsmokeofficial-vectors"
+
+[[durable_objects.bindings]]
+name = "CHAT_SESSIONS"
+class_name = "ChatSessionDurableObject"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ChatSessionDurableObject"]
+
+[[ai]]
+binding = "AI"
+

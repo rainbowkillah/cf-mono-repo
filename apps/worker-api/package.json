@@ -1,0 +1,9 @@
+{
+  "name": "@apps/worker-api",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@packages/core": "workspace:*"
+  }
+}
+
