@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { json, notFound, unauthorized } from "../src/responses";
+import { json, notFound, unauthorized, tooManyRequests } from "../src/responses";
 
 describe("Response Helpers", () => {
   describe("json()", () => {
@@ -54,6 +54,21 @@ describe("Response Helpers", () => {
 
       expect(response.status).toBe(401);
       expect(await response.text()).toBe("Unauthorized");
+    });
+  });
+
+  describe("tooManyRequests()", () => {
+    it("should return 429 response", async () => {
+      const response = tooManyRequests();
+
+      expect(response.status).toBe(429);
+      expect(await response.text()).toBe("Too Many Requests");
+    });
+
+    it("should include retry-after header when provided", () => {
+      const response = tooManyRequests(30);
+
+      expect(response.headers.get("retry-after")).toBe("30");
     });
   });
 });

@@ -11,6 +11,8 @@ type StoredMessage = {
   createdAt: number;
 };
 
+const MAX_MESSAGES = 100;
+
 const chatBodySchema = z.object({
   sessionId: z.string().min(1),
   message: z.string().min(1)
@@ -217,6 +219,10 @@ export class ChatSessionDurableObject {
       message.role,
       message.content,
       message.createdAt
+    );
+    this.sql.exec(
+      "DELETE FROM messages WHERE id NOT IN (SELECT id FROM messages ORDER BY id DESC LIMIT ?)",
+      MAX_MESSAGES
     );
   }
 

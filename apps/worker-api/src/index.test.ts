@@ -1,67 +1,55 @@
-// apps/worker-api/src/index.test.ts
-import { describe, it, expect } from 'vitest';
-import worker from './index';
-import type Env from '@packages/core/env';
+import { describe, it, expect, vi } from "vitest";
+import worker from "./index";
+import type { Env } from "@packages/core/types";
 
-const mockTenantConfig = {
-  tenantId: "test-tenant",
-  aiGatewayRoute: "https://example.com/ai",
-  modelPolicy: { chat: "chat-model", embeddings: "embed-model" },
-  vectorizeIndex: "test-vector-index",
-  kvNamespace: "test-kv-namespace",
-  doSessionName: "TestSessionDO",
-  rateLimit: { perMinute: 60, burst: 10 },
+const baseEnv: Env = {
+  TENANT_ID: "mrrainbowsmoke",
+  AI: {} as Ai,
+  CACHE: {} as KVNamespace,
+  VECTORS: {} as VectorizeIndex,
+  CHAT_SESSIONS: {
+    get: vi.fn(),
+    idFromName: vi.fn(),
+    idFromString: vi.fn(),
+    newUniqueId: vi.fn()
+  } as unknown as DurableObjectNamespace,
+  RATE_LIMITER: {
+    idFromName: vi.fn().mockReturnValue("global"),
+    get: vi.fn().mockReturnValue({ fetch: vi.fn().mockResolvedValue(new Response("ok")) })
+  } as unknown as DurableObjectNamespace
 };
 
-// Mock KV_TENANT_CONFIG.get
-const mockKVTenantConfig = {
-  get: async (key: string) => {
-    if (key.endsWith(`:${mockTenantConfig.tenantId}`)) {
-      return JSON.stringify(mockTenantConfig);
-    }
-    return null;
-  },
-} as any; // Cast to any for simplicity in mocking
-
-// Mock DurableObjectNamespace
-const mockSessionDO = {} as DurableObjectNamespace;
-
-// A minimal Env object for testing
-const mockEnv: Env = {
-  KV_TENANT_CONFIG: mockKVTenantConfig,
-  SESSION_DO: mockSessionDO,
-};
-
-describe('worker-api with router', () => {
-  it('should return a 200 OK with tenant info for /health', async () => {
-    const request = new Request('http://localhost/health', {
-      headers: { 'x-tenant-id': mockTenantConfig.tenantId },
+describe("worker-api with router", () => {
+  it("should return a 200 OK with tenant info for /health", async () => {
+    const request = new Request("http://localhost/health", {
+      headers: { "x-tenant-id": "mrrainbowsmoke" }
     });
-    const response = await worker.fetch(request, mockEnv, {} as ExecutionContext);
+    const response = await worker.fetch(request, baseEnv, {} as ExecutionContext);
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body).toEqual({
-      success: true,
-      data: {
-        ok: true,
-        tenantId: mockTenantConfig.tenantId,
-      },
+      ok: true,
+      tenantId: "mrrainbowsmoke"
     });
   });
 
-  it('should return 404 for an unknown route', async () => {
-    const request = new Request('http://localhost/unknown', {
-      headers: { 'x-tenant-id': mockTenantConfig.tenantId },
+  it("should return 404 for an unknown route", async () => {
+    const request = new Request("http://localhost/unknown", {
+      headers: { "x-tenant-id": "mrrainbowsmoke" }
     });
-    const response = await worker.fetch(request, mockEnv, {} as ExecutionContext);
+    const response = await worker.fetch(request, baseEnv, {} as ExecutionContext);
     expect(response.status).toBe(404);
-    const body = await response.json();
-    expect(body.error.message).toBe('Not Found');
+    const body = await response.text();
+    expect(body).toBe("Not Found");
   });
 
-  it('should still return 401 if tenant is missing', async () => {
-    const request = new Request('http://localhost/health');
-    const response = await worker.fetch(request, mockEnv, {} as ExecutionContext);
+  it("should return 401 if tenant is missing", async () => {
+    const env: Env = {
+      ...baseEnv,
+      TENANT_ID: undefined
+    };
+    const request = new Request("http://localhost/health");
+    const response = await worker.fetch(request, env, {} as ExecutionContext);
     expect(response.status).toBe(401);
   });
 });

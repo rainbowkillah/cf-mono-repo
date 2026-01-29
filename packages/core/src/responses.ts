@@ -15,3 +15,11 @@ export function notFound(): Response {
 export function unauthorized(): Response {
   return new Response("Unauthorized", { status: 401 });
 }
+
+export function tooManyRequests(retryAfterSeconds?: number): Response {
+  const headers: Record<string, string> = {};
+  if (typeof retryAfterSeconds === "number") {
+    headers["retry-after"] = String(retryAfterSeconds);
+  }
+  return new Response("Too Many Requests", { status: 429, headers });
+}

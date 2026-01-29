@@ -1,20 +1,19 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
-import workers from "@cloudflare/vitest-pool-workers";
+
+const rootDir = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
   resolve: {
-    alias: {
-      '@packages': './packages',
-    },
+    alias: [
+      {
+        find: /^@packages\/core\/(.*)$/,
+        replacement: `${path.resolve(rootDir, "packages/core/src")}/$1`
+      }
+    ]
   },
   test: {
-    pool: workers(),
-    poolOptions: {
-      workers: {
-        wrangler: {
-          configPath: "apps/worker-api/wrangler.toml"
-        }
-      }
-    }
+    environment: "node"
   }
 });

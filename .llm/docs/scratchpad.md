@@ -23,3 +23,15 @@
 - Implement DO-based rate limiter (per tenant + per IP/user) + keying strategy.
 - Add session isolation tests and rate limit enforcement tests.
 - Decide on retention policy and enforce in session DO.
+
+## M1 Implementation Progress
+- Restored route-based router with tenant enforcement and added rate-limit check.
+- Added RateLimiterDurableObject (SQLite) + response helper for 429.
+- Added DO bindings and migrations for RATE_LIMITER in tenant and app wrangler.
+- Added session retention policy (max 100 messages).
+- Added SSE streaming contract doc: `docs/streaming.md`.
+- Added/expanded router tests for session isolation, rate limiting, and SSE pass-through.
+
+## M1 Additions (Rate Limiting)
+- Added `packages/core/tests/rate-limit-do.test.ts` with mock SqlStorage.
+- Added `docs/rate-limits.md` documenting keying strategy and limits.

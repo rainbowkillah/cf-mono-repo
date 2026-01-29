@@ -21,6 +21,13 @@ class_name = "ChatSessionDurableObject"
 tag = "v1"
 new_sqlite_classes = ["ChatSessionDurableObject"]
 
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiterDurableObject"
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["RateLimiterDurableObject"]
+
 [ai]
 binding = "AI"
-

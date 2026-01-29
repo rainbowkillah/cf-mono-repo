@@ -12,8 +12,12 @@ describe("Router", () => {
       get: vi.fn(),
       idFromName: vi.fn(),
       idFromString: vi.fn(),
-      newUniqueId: vi.fn(),
+      newUniqueId: vi.fn()
     } as unknown as DurableObjectNamespace,
+    RATE_LIMITER: {
+      idFromName: vi.fn().mockReturnValue("global"),
+      get: vi.fn().mockReturnValue({ fetch: vi.fn().mockResolvedValue(new Response("ok")) })
+    } as unknown as DurableObjectNamespace
   };
 
   describe("Tenant Authorization", () => {
@@ -124,6 +128,109 @@ describe("Router", () => {
       const response = await router.fetch(request, mockEnv);
 
       expect(response.status).toBe(405);
+    });
+  });
+
+  describe("Session Isolation", () => {
+    it("should include tenant in DO id for chat sessions", async () => {
+      const router = createRouter();
+      const idFromName = vi.fn().mockReturnValue("id");
+      const stubFetch = vi.fn().mockResolvedValue(new Response("ok"));
+
+      const env: Env = {
+        ...mockEnv,
+        CHAT_SESSIONS: {
+          idFromName,
+          get: () => ({ fetch: stubFetch })
+        } as unknown as DurableObjectNamespace
+      };
+
+      const request = new Request("https://example.com/api/chat", {
+        method: "POST",
+        headers: { "x-tenant-id": "mrrainbowsmoke" },
+        body: JSON.stringify({ sessionId: "s1", message: "hi" })
+      });
+
+      await router.fetch(request, env);
+      expect(idFromName).toHaveBeenCalledWith("mrrainbowsmoke:s1");
+    });
+
+    it("should isolate chat sessions across tenants", async () => {
+      const router = createRouter();
+      const idFromName = vi.fn().mockReturnValue("id");
+      const stubFetch = vi.fn().mockResolvedValue(new Response("ok"));
+
+      const env: Env = {
+        ...mockEnv,
+        TENANT_ID: undefined,
+        CHAT_SESSIONS: {
+          idFromName,
+          get: () => ({ fetch: stubFetch })
+        } as unknown as DurableObjectNamespace
+      };
+
+      const request = new Request("https://example.com/api/chat", {
+        method: "POST",
+        headers: { "x-tenant-id": "rainbowsmokeofficial" },
+        body: JSON.stringify({ sessionId: "s1", message: "hi" })
+      });
+
+      await router.fetch(request, env);
+      expect(idFromName).toHaveBeenCalledWith("rainbowsmokeofficial:s1");
+    });
+  });
+
+  describe("Rate Limiting", () => {
+    it("should return 429 when rate limiter rejects", async () => {
+      const router = createRouter();
+      const limiterFetch = vi.fn().mockResolvedValue(new Response("Too Many Requests", { status: 429 }));
+
+      const env: Env = {
+        ...mockEnv,
+        RATE_LIMITER: {
+          idFromName: vi.fn().mockReturnValue("global"),
+          get: vi.fn().mockReturnValue({ fetch: limiterFetch })
+        } as unknown as DurableObjectNamespace
+      };
+
+      const request = new Request("https://example.com/api/chat", {
+        method: "POST",
+        headers: { "x-tenant-id": "mrrainbowsmoke" },
+        body: JSON.stringify({ sessionId: "s1", message: "hi" })
+      });
+
+      const response = await router.fetch(request, env);
+      expect(response.status).toBe(429);
+    });
+  });
+
+  describe("Streaming Pass-through", () => {
+    it("should pass through SSE response from DO", async () => {
+      const router = createRouter();
+      const streamResponse = new Response("event: message\ndata: {}\n\n", {
+        headers: { "content-type": "text/event-stream" }
+      });
+
+      const env: Env = {
+        ...mockEnv,
+        RATE_LIMITER: {
+          idFromName: vi.fn().mockReturnValue("global"),
+          get: vi.fn().mockReturnValue({ fetch: vi.fn().mockResolvedValue(new Response("ok")) })
+        } as unknown as DurableObjectNamespace,
+        CHAT_SESSIONS: {
+          idFromName: vi.fn().mockReturnValue("id"),
+          get: vi.fn().mockReturnValue({ fetch: vi.fn().mockResolvedValue(streamResponse) })
+        } as unknown as DurableObjectNamespace
+      };
+
+      const request = new Request("https://example.com/api/chat", {
+        method: "POST",
+        headers: { "x-tenant-id": "mrrainbowsmoke" },
+        body: JSON.stringify({ sessionId: "s1", message: "hi" })
+      });
+
+      const response = await router.fetch(request, env);
+      expect(response.headers.get("content-type")).toBe("text/event-stream");
     });
   });
 });

@@ -9,6 +9,7 @@ export interface Env {
   CACHE: KVNamespace;
   VECTORS: VectorizeIndex;
   CHAT_SESSIONS: DurableObjectNamespace;
+  RATE_LIMITER: DurableObjectNamespace;
 
   KV_TENANT_CONFIG?: KVNamespace;
 }
