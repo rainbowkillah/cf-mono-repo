@@ -1,82 +1,51 @@
-import { z } from "zod";
-import { json, notFound, unauthorized } from "./responses";
-import { resolveTenantId } from "./tenant";
-import type { Env } from "./types";
+// packages/core/src/router.ts
+import { errorResponse } from './responses';
+import Env from './env';
 
-export function createRouter() {
-  return {
-    async fetch(request: Request, env: Env): Promise<Response> {
-      const url = new URL(request.url);
-      const tenantId = resolveTenantId(request, env);
-      if (!tenantId) return unauthorized();
-      if (env.TENANT_ID && tenantId !== env.TENANT_ID) return unauthorized();
+type RouteHandler = (request: Request, env: Env, ctx: ExecutionContext) => Promise<Response> | Response;
 
-      if (url.pathname === "/health") return json({ ok: true, tenantId });
-      if (url.pathname === "/api/ingest") return handleIngest(request, env, tenantId);
-      if (url.pathname === "/api/search") return handleSearch(request, env, tenantId);
-      if (url.pathname === "/api/chat") return handleChat(request, env, tenantId);
+interface Route {
+  method: string;
+  path: RegExp;
+  handler: RouteHandler;
+}
 
-      return notFound();
+export class Router {
+  private routes: Route[] = [];
+
+  private addRoute(method: string, path: string, handler: RouteHandler) {
+    // Simple path to regex conversion
+    const regexPath = new RegExp(`^${path.replace(/:\w+/g, '([^/]+)')}$`);
+    this.routes.push({ method, path: regexPath, handler });
+    return this;
+  }
+
+  get(path: string, handler: RouteHandler) {
+    return this.addRoute('GET', path, handler);
+  }
+
+  post(path: string, handler: RouteHandler) {
+    return this.addRoute('POST', path, handler);
+  }
+
+  // ... add other methods like PUT, DELETE as needed
+
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    for (const route of this.routes) {
+      if (request.method.toUpperCase() === route.method.toUpperCase()) {
+        const match = path.match(route.path);
+        if (match) {
+          // Note: This simple router doesn't handle path parameters yet.
+          return route.handler(request, env, ctx);
+        }
+      }
     }
-  };
+
+    return errorResponse('Not Found', 404);
+  }
 }
 
-const ingestBodySchema = z.object({
-  documents: z.array(
-    z.object({
-      id: z.string().min(1),
-      text: z.string().min(1),
-      metadata: z.record(z.string(), z.unknown()).optional()
-    })
-  )
-});
-
-async function handleIngest(request: Request, env: Env, tenantId: string): Promise<Response> {
-  if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
-
-  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (env.INGEST_TOKEN && token !== env.INGEST_TOKEN) return unauthorized();
-
-  const body = ingestBodySchema.parse(await request.json());
-  const stub = env.CHAT_SESSIONS.get(env.CHAT_SESSIONS.idFromName(`${tenantId}:admin`));
-  return stub.fetch("https://do.internal/ingest", {
-    method: "POST",
-    headers: { "x-tenant-id": tenantId },
-    body: JSON.stringify(body)
-  });
-}
-
-const searchBodySchema = z.object({
-  query: z.string().min(1),
-  topK: z.number().int().min(1).max(20).default(5)
-});
-
-async function handleSearch(request: Request, env: Env, tenantId: string): Promise<Response> {
-  if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
-  const body = searchBodySchema.parse(await request.json());
-
-  const stub = env.CHAT_SESSIONS.get(env.CHAT_SESSIONS.idFromName(`${tenantId}:admin`));
-  return stub.fetch("https://do.internal/search", {
-    method: "POST",
-    headers: { "x-tenant-id": tenantId },
-    body: JSON.stringify(body)
-  });
-}
-
-const chatBodySchema = z.object({
-  sessionId: z.string().min(1),
-  message: z.string().min(1)
-});
-
-async function handleChat(request: Request, env: Env, tenantId: string): Promise<Response> {
-  if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
-
-  const body = chatBodySchema.parse(await request.json());
-  const doId = env.CHAT_SESSIONS.idFromName(`${tenantId}:${body.sessionId}`);
-  const stub = env.CHAT_SESSIONS.get(doId);
-  return stub.fetch("https://do.internal/chat", {
-    method: "POST",
-    headers: { "x-tenant-id": tenantId },
-    body: JSON.stringify(body)
-  });
-}
+export const createRouter = () => new Router();
