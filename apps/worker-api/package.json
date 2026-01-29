@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@packages/core": "workspace:*"
+    "@packages/core": "*"
   }
 }
 
