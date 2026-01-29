@@ -1,4 +1,11 @@
 # Project Organization Summary
+_Last updated: 2026-01-29_
+
+## LLM PRIMARY COLLAB SPACE
+- `.llm/` is the shared workspace for Copilot, Claude, Codex, and Gemini.
+- Use `.llm/scratchpad.md` for handoffs and short-term coordination.
+- Export chat/context/session notes to `.llm/archive/` (timestamped files).
+- Never store secrets or `.env` contents in `.llm/`.
 
 > **Generated:** 2026-01-29  
 > **GitHub Project:** https://github.com/users/rainbowkillah/projects/12  
@@ -75,8 +82,10 @@ M8 (Deployment) ← Requires all previous milestones
 ```
 cloudflare/
 ├── plan.md                     ✅ Updated with GitHub links
-├── AGENTS.md                   ⚠️ Needs update
-├── GEMINI.md                   ⚠️ Needs update
+├── AGENTS.md                   ✅ Updated repo guidelines
+├── GEMINI.md                   ✅ Updated overview
+├── .eslintrc.cjs
+├── .prettierrc
 ├── package.json
 ├── tsconfig.base.json
 ├── tsconfig.json
@@ -84,32 +93,42 @@ cloudflare/
 ├── apps/
 │   └── worker-api/            🚧 Basic structure exists
 │       ├── package.json
+│       ├── project.json
 │       ├── tsconfig.json
+│       ├── wrangler.toml
 │       └── src/
 │           └── index.ts
 ├── packages/
 │   └── core/                  🚧 Basic structure exists
 │       ├── package.json
+│       ├── project.json
 │       ├── tsconfig.json
 │       └── src/
 │           ├── responses.ts
 │           ├── router.ts
 │           ├── session-do.ts
+│           ├── tenant-config.ts
 │           ├── tenant.ts
 │           └── types.ts
 ├── docs/                       ✅ Documentation hub
 │   ├── architecture.md
 │   ├── failure-modes.md
+│   ├── local-dev.md
 │   ├── metrics.md
 │   ├── runbooks.md
 │   ├── tenancy.md
 │   ├── testing.md
 │   ├── milestone-tracker.md   ✅ NEW - Complete task list
 │   └── m3-m8-breakdown.md     ✅ NEW - Detailed M3-M8 tasks
-├── mrrainbowsmoke/            ⚠️ Tenant config needed
-│   └── wrangler.toml
-└── rainbowsmokeofficial.com/  ⚠️ Tenant config needed
-    └── wrangler.toml
+├── tenants/
+│   ├── mrrainbowsmoke/
+│   │   ├── tenant.config.json
+│   │   └── wrangler.toml
+│   └── rainbowsmokeofficial/
+│       ├── tenant.config.json
+│       └── wrangler.toml
+├── scripts/                    ✅ Present (empty)
+└── tests/                      ✅ Present (smoke tests)
 ```
 
 ### Target Structure (from plan.md)

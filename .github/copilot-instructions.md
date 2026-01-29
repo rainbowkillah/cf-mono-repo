@@ -1,13 +1,15 @@
 # Copilot Instructions for Cloudflare Workers AI Multi-Tenant Monorepo
+_Last updated: 2026-01-29_
 
 ## Project Overview
 
-This is a multi-tenant Cloudflare Workers AI platform built as a monorepo. **Milestone M0 (Foundation) is complete** with core tenant resolution, routing, and test infrastructure in place. Two tenants are configured: `mrrainbowsmoke` and `rainbowsmokeofficial`.
+This is a multi-tenant Cloudflare Workers AI platform built as a monorepo. M0 is in progress with core tenant resolution, routing, and test infrastructure in place. Two tenants are configured: `mrrainbowsmoke` and `rainbowsmokeofficial`.
 
 ### Primary Documents
  **[plan.md](../plan.md)** - Master project plan with milestones (now with GitHub links)
  **[milestone-tracker.md](./milestone-tracker.md)** - Complete task list with checkboxes
  **[m3-m8-breakdown.md](./m3-m8-breakdown.md)** - Detailed view of M3-M8 tasks
+ **[local-dev.md](./local-dev.md)** - Wrangler local development guide
 
 ### Architecture & Design
  **[architecture.md](./architecture.md)** - System design and component interactions
@@ -35,14 +37,17 @@ This is a multi-tenant Cloudflare Workers AI platform built as a monorepo. **Mil
 /packages/
   core/                 # ✅ Tenant resolution, router, types, DO
     src/
+      env.ts            # ✅ Env source of truth
       types.ts          # ✅ Type definitions (Env, TenantId)
       tenant.ts         # ✅ Tenant resolution logic
+      tenant-config.ts  # ✅ Tenant config schema
       router.ts         # ✅ HTTP router with validation
       responses.ts      # ✅ Response helpers (json, 404, 401)
       session-do.ts     # ✅ ChatSessionDurableObject
-    tests/              # ✅ Unit tests (19 passing)
+    tests/              # ✅ Unit tests (count may vary)
 /tenants/<tenant-id>/
   wrangler.toml         # ✅ Cloudflare deployment config
+  tenant.config.json    # ✅ Tenant configuration
   .env                  # (local, not committed)
   .env.example          # ✅ Environment template
 ```
@@ -73,14 +78,14 @@ This is a multi-tenant Cloudflare Workers AI platform built as a monorepo. **Mil
 - Durable Objects: Tenant ID included in object ID
 - Vectorize: Per-tenant index names in tenant config
 
-## Development Workflow (M0 Complete)
+## Development Workflow (M0 In Progress)
 
 ### Build & Test Commands
 ```bash
 # Type checking
 npm run typecheck
 
-# Run tests (19 passing)
+# Run tests
 npm test
 
 # Local development
@@ -137,18 +142,16 @@ The project follows a milestone-based approach (M0-M8) defined in `plan.md`:
 8. **M7:** Observability, metrics, QA gates, load tests
 9. **M8:** Repeatable deployment per tenant + drift detection
 
-**Current Status:** ✅ **M0 Complete** (Foundation established)
+**Current Status:** 🚧 **M0 In Progress**
 
-**M0 Achievements:**
+**M0 Progress:**
 - ✅ Monorepo structure with npm workspaces
 - ✅ Tenant resolution middleware (header + env fallback)
 - ✅ HTTP router with type-safe routing
 - ✅ Response helpers (json, 404, 401)
 - ✅ Durable Object for chat sessions
 - ✅ Test infrastructure (vitest)
-- ✅ **19/19 unit tests passing**
 - ✅ TypeScript strict mode
-- ✅ README.md with quickstart
 - ✅ .env.example templates
 
 **Next:** M1 (Rate Limiting + Session Management)
@@ -210,5 +213,6 @@ This repository uses:
 - **AGENTS.md** - Repository guidelines (current placeholder)
 - **GEMINI.md** - Directory overview (current state documentation)
 - **.github/copilot-instructions.md** - This file
+- **.llm/** - LLM PRIMARY COLLAB SPACE (scratchpad + archive)
 
 When making changes, ensure consistency across these files.

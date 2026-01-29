@@ -1,6 +1,12 @@
 # Cloudflare Workers Primitive Architecture Plan
 https://github.com/users/rainbowkillah/projects/12
 
+## LLM PRIMARY COLLAB SPACE
+- `.llm/` is the shared workspace for Copilot, Claude, Codex, and Gemini.
+- Use `.llm/scratchpad.md` for handoffs and short-term coordination.
+- Export chat/context/session notes to `.llm/archive/` (timestamped files).
+- Never store secrets or `.env` contents in `.llm/`.
+
 
 ## 1) Architecture mapped to Cloudflare primitives
 
@@ -410,4 +416,3 @@ export type TenantContext = {
 - `packages/core`, `packages/storage`, `packages/ai`, `packages/rag`.
 - `docs/architecture.md` and `docs/tenancy.md`.
 - `plan.md` kept as source of truth for milestones.
-

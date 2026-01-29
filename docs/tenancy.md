@@ -1,5 +1,11 @@
 # Tenancy Model
 
+## LLM PRIMARY COLLAB SPACE
+- `.llm/` is the shared workspace for Copilot, Claude, Codex, and Gemini.
+- Use `.llm/scratchpad.md` for handoffs and short-term coordination.
+- Export chat/context/session notes to `.llm/archive/` (timestamped files).
+- Never store secrets or `.env` contents in `.llm/`.
+
 ## Goals
 - Strict isolation across tenants.
 - Every request resolves tenant identity before any storage or AI call.
@@ -55,4 +61,3 @@ export type TenantContext = {
 - Unit test: tenant resolution.
 - Integration test: cross-tenant request rejected.
 - Vectorize: enforced tenant filters for shared indexes.
-
