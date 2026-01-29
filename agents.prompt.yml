@@ -19,7 +19,7 @@ project:
   runtime: "cloudflare-workers"
   tenancy:
     mode: "multi-tenant"
-    accounts: ["com.rainbowsmokeofficial", "com-mrrainbowsmoke"]
+    accounts: ["rainbowsmokeofficial", "mrrainbowsmoke"]
     tenant_isolation:
       strategy: "config + namespace isolation"
       rules:
