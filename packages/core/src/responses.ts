@@ -3,8 +3,8 @@ export function json(data: unknown, init?: ResponseInit): Response {
     ...init,
     headers: {
       "content-type": "application/json; charset=utf-8",
-      ...(init?.headers ?? {})
-    }
+      ...(init?.headers ?? {}),
+    },
   });
 }
 
@@ -15,4 +15,3 @@ export function notFound(): Response {
 export function unauthorized(): Response {
   return new Response("Unauthorized", { status: 401 });
 }
-

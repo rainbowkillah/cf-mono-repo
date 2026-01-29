@@ -3,6 +3,9 @@
   "compilerOptions": {
     "composite": true
   },
+  "references": [
+    { "path": "../../packages/core" }
+  ],
   "include": ["src/**/*.ts"]
 }
 

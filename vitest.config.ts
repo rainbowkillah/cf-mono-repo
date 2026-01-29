@@ -1,16 +1,11 @@
 import { defineConfig } from "vitest/config";
-import workers from "@cloudflare/vitest-pool-workers";
 
 export default defineConfig({
   test: {
-    pool: workers(),
-    poolOptions: {
-      workers: {
+    globals: true,
         wrangler: {
-          configPath: "mrrainbowsmoke/wrangler.toml"
+          configPath: "apps/worker-api/wrangler.toml"
         }
-      }
-    }
-  }
+  },
 });
 

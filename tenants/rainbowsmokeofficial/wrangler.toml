@@ -1,5 +1,5 @@
 name = "rainbowsmokeofficial-worker-api"
-main = "../apps/worker-api/src/index.ts"
+main = "../../apps/worker-api/src/index.ts"
 compatibility_date = "2025-01-01"
 
 [vars]
@@ -21,6 +21,6 @@ class_name = "ChatSessionDurableObject"
 tag = "v1"
 new_sqlite_classes = ["ChatSessionDurableObject"]
 
-[[ai]]
+[ai]
 binding = "AI"
 

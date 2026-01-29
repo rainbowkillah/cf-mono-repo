@@ -11,6 +11,7 @@
   "scripts": {
     "dev:mrrainbowsmoke": "wrangler dev --config mrrainbowsmoke/wrangler.toml",
     "dev:rainbowsmokeofficial": "wrangler dev --config rainbowsmokeofficial.com/wrangler.toml",
+    "dev:worker-api": "wrangler dev --config apps/worker-api/wrangler.toml",
     "deploy:mrrainbowsmoke": "wrangler deploy --config mrrainbowsmoke/wrangler.toml",
     "deploy:rainbowsmokeofficial": "wrangler deploy --config rainbowsmokeofficial.com/wrangler.toml",
     "test": "vitest run",
