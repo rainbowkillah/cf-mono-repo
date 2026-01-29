@@ -5,17 +5,17 @@
 This is a multi-tenant Cloudflare Workers AI platform built as a monorepo. **Milestone M0 (Foundation) is complete** with core tenant resolution, routing, and test infrastructure in place. Two tenants are configured: `mrrainbowsmoke` and `rainbowsmokeofficial`.
 
 ### Primary Documents
-- **[plan.md](../plan.md)** - Master project plan with milestones (now with GitHub links)
-- **[milestone-tracker.md](./milestone-tracker.md)** - Complete task list with checkboxes
-- **[m3-m8-breakdown.md](./m3-m8-breakdown.md)** - Detailed view of M3-M8 tasks
+ **[plan.md](../plan.md)** - Master project plan with milestones (now with GitHub links)
+ **[milestone-tracker.md](./milestone-tracker.md)** - Complete task list with checkboxes
+ **[m3-m8-breakdown.md](./m3-m8-breakdown.md)** - Detailed view of M3-M8 tasks
 
 ### Architecture & Design
-- **[architecture.md](./architecture.md)** - System design and component interactions
-- **[tenancy.md](./tenancy.md)** - Tenant isolation patterns and enforcement
-- **[testing.md](./testing.md)** - Testing strategy and harness details
-- **[metrics.md](./metrics.md)** - Observability schema and dashboard configurations
-- **[failure-modes.md](./failure-modes.md)** - Documented failure scenarios
-- **[runbooks.md](./runbooks.md)** - Operational procedures
+ **[architecture.md](./architecture.md)** - System design and component interactions
+ **[tenancy.md](./tenancy.md)** - Tenant isolation patterns and enforcement
+ **[testing.md](./testing.md)** - Testing strategy and harness details
+ **[metrics.md](./metrics.md)** - Observability schema and dashboard configurations
+ **[failure-modes.md](./failure-modes.md)** - Documented failure scenarios
+ **[runbooks.md](./runbooks.md)** - Operational procedures
 
 **Core capabilities being built:**
 - Workers AI inference with streaming chat
