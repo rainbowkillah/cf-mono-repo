@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This is a multi-tenant Cloudflare Workers AI platform built as a monorepo. The project is in the **initial planning and scaffolding phase** with two tenant directories (`mrrainbowsmoke/` and `rainbowsmokeofficial.com/`) awaiting implementation.
+This is a multi-tenant Cloudflare Workers AI platform built as a monorepo. **Milestone M0 (Foundation) is complete** with core tenant resolution, routing, and test infrastructure in place. Two tenants are configured: `mrrainbowsmoke` and `rainbowsmokeofficial`.
 
 ### Primary Documents
 - **[plan.md](../plan.md)** - Master project plan with milestones (now with GitHub links)
@@ -28,23 +28,32 @@ This is a multi-tenant Cloudflare Workers AI platform built as a monorepo. The p
 
 ## Architecture
 
-### Target Structure
+### Current Structure (M0)
 ```
 /apps/
-  worker-api/        # Primary API surface (/chat, /search, /tools, /ingest, /tts)
-  ingest-worker/     # Document ingestion pipeline (optional separation)
+  worker-api/           # ✅ Primary API Worker (index.ts)
 /packages/
-  core/              # Tenant resolution, middleware, schemas, errors
+  core/                 # ✅ Tenant resolution, router, types, DO
+    src/
+      types.ts          # ✅ Type definitions (Env, TenantId)
+      tenant.ts         # ✅ Tenant resolution logic
+      router.ts         # ✅ HTTP router with validation
+      responses.ts      # ✅ Response helpers (json, 404, 401)
+      session-do.ts     # ✅ ChatSessionDurableObject
+    tests/              # ✅ Unit tests (19 passing)
+/tenants/<tenant-id>/
+  wrangler.toml         # ✅ Cloudflare deployment config
+  .env                  # (local, not committed)
+  .env.example          # ✅ Environment template
+```
+
+### Planned Additions (M1+)
+```
+/packages/
   storage/           # KV/DO/Vectorize adapters (tenant-aware)
   rag/               # Chunking, prompting, citations, safety filters
   observability/     # Structured logs + metrics helpers
-  testing/           # Fixtures, harness, local runners
-  nx-cloudflare/     # Nx plugin for scaffolding/deployment (future)
-/tenants/<tenant-id>/
-  tenant.config.json # Tenant-specific configuration
-  wrangler.jsonc     # Cloudflare deployment config
-  policies.json      # Optional AI policies
-  prompts/           # Optional prompt templates
+  testing/           # Integration test fixtures
 ```
 
 ### Key Architectural Principles
@@ -64,18 +73,27 @@ This is a multi-tenant Cloudflare Workers AI platform built as a monorepo. The p
 - Durable Objects: Tenant ID included in object ID
 - Vectorize: Per-tenant index names in tenant config
 
-## Development Workflow (When Implemented)
+## Development Workflow (M0 Complete)
 
 ### Build & Test Commands
-Not yet configured. When tooling is added:
-- `nx dev <project> --tenant=<id>` - Start local dev server for a tenant
-- `nx test <project>` - Run unit tests
-- `nx build <project>` - Build production assets
-- `nx deploy <project> --tenant=<id>` - Deploy one tenant
-- `nx deployAll <project>` - Deploy all tenants
+```bash
+# Type checking
+npm run typecheck
 
-### Nx Plugin (Future)
-An Nx plugin is planned (`packages/nx-cloudflare/`) to provide generators and executors comparable to `wrangler` and `create-cloudflare`:
+# Run tests (19 passing)
+npm test
+
+# Local development
+npm run dev:mrrainbowsmoke
+npm run dev:rainbowsmokeofficial
+
+# Deploy (requires KV/Vectorize setup)
+npm run deploy:mrrainbowsmoke
+npm run deploy:rainbowsmokeofficial
+```
+
+### Future Nx Plugin
+An Nx plugin is planned (`packages/nx-cloudflare/`) for M8:
 - **Generators:** `worker`, `tenant`, `binding`, `rag-module`
 - **Executors:** `dev`, `test`, `deploy`, `deployAll`
 
@@ -83,7 +101,7 @@ An Nx plugin is planned (`packages/nx-cloudflare/`) to provide generators and ex
 
 ### File Naming
 - Lowercase and hyphenated: `user-profile/`, `site-header.tsx`
-- Tests: `*.test.ts` pattern (when testing is configured)
+- Tests: `*.test.ts` pattern (configured with vitest)
 
 ### Source Organization
 - Runtime code in `src/` directories
@@ -92,16 +110,14 @@ An Nx plugin is planned (`packages/nx-cloudflare/`) to provide generators and ex
 
 ### Security & Configuration
 - **Never commit `.env` files or secrets**
-- Use `.env.example` for shared configuration templates
-- All tenant configurations stored in `tenant.config.json`
-- Minimum tenant config fields:
-  - `tenantId`, `accountId`, `hostnameMapping`
-  - `ai` (models, gateway routes, budgets)
-  - `vectorize` (index names)
-  - `kv` (namespace mappings)
-  - `do` (class + binding names)
-  - `cors` (origins)
-  - `featureFlags`
+- Use `.env.example` for shared configuration templates (✅ created)
+- Tenant configurations in `wrangler.toml` include:
+  - `[vars]` with TENANT_ID
+  - `[[kv_namespaces]]` for CACHE binding
+  - `[[vectorize]]` for VECTORS binding
+  - `[[durable_objects.bindings]]` for CHAT_SESSIONS
+  - `[ai]` for AI binding
+  - Optional: INGEST_TOKEN secret
 
 ### Commit Guidelines
 - Use clear, imperative messages: "Add landing page hero", "Fix tenant resolution"
@@ -121,7 +137,21 @@ The project follows a milestone-based approach (M0-M8) defined in `plan.md`:
 8. **M7:** Observability, metrics, QA gates, load tests
 9. **M8:** Repeatable deployment per tenant + drift detection
 
-**Current Status:** Pre-M0 (planning phase). No source code implemented yet.
+**Current Status:** ✅ **M0 Complete** (Foundation established)
+
+**M0 Achievements:**
+- ✅ Monorepo structure with npm workspaces
+- ✅ Tenant resolution middleware (header + env fallback)
+- ✅ HTTP router with type-safe routing
+- ✅ Response helpers (json, 404, 401)
+- ✅ Durable Object for chat sessions
+- ✅ Test infrastructure (vitest)
+- ✅ **19/19 unit tests passing**
+- ✅ TypeScript strict mode
+- ✅ README.md with quickstart
+- ✅ .env.example templates
+
+**Next:** M1 (Rate Limiting + Session Management)
 
 ## Critical Constraints
 
@@ -142,20 +172,28 @@ Every component must document:
 - Metrics definitions, logging schema, and dashboard/alert suggestions are first-class deliverables
 - Each milestone requires runnable demo, passing tests, and measurable success criteria
 
-## Testing Strategy (When Implemented)
+## Testing Strategy (M0 Implemented)
 
-### Unit Tests
+### Unit Tests ✅
+- **Status:** 19 tests passing (100%)
+- **Framework:** Vitest with node environment
+- **Coverage:**
+  - Tenant resolution (6 tests)
+  - Router logic (8 tests)
+  - Response helpers (5 tests)
 - Fully local, no external dependencies
 - Mock tenant contexts and storage adapters
 
-### Integration Tests
+### Integration Tests (M1+)
 - Use staging resources per tenant where needed (CI-gated)
 - Tenant isolation tests mandatory for any storage operation
 - Contract tests for streaming responses and tool execution
 
-### Local Dev Parity
-- Unit tests fully local
-- Integration tests use staging resources where Vectorize/Workers AI cannot be simulated
+### Commands
+```bash
+npm test                  # Run all tests
+npm run typecheck         # TypeScript validation
+```
 
 ## Documentation Requirements
 
