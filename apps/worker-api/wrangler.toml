@@ -12,5 +12,5 @@ binding = "KV_TENANT_CONFIG"
 id = "00000000000000000000000000000001" # Placeholder ID
 
 [[durable_objects.bindings]]
-name = "SESSION_DO"
+name = "CHAT_SESSIONS"
 class_name = "ChatSessionDurableObject" # This class will be defined later

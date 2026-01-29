@@ -1,0 +1,18 @@
+{
+  "name": "worker-api",
+  "root": "apps/worker-api",
+  "sourceRoot": "apps/worker-api/src",
+  "projectType": "application",
+  "targets": {
+    "dev": {
+      "command": "wrangler dev --config apps/worker-api/wrangler.toml"
+    },
+    "test": {
+      "command": "vitest run"
+    },
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit"
+    }
+  },
+  "tags": []
+}

@@ -1,0 +1,24 @@
+{
+  "tenantId": "rainbowsmokeofficial",
+  "hostnames": ["rainbowsmokeofficial.com"],
+  "ai": {
+    "gatewayRoute": "rainbowsmokeofficial",
+    "models": {
+      "chat": "@cf/meta/llama-3.1-8b-instruct",
+      "embeddings": "@cf/baai/bge-base-en-v1.5"
+    }
+  },
+  "vectorize": {
+    "index": "rainbowsmokeofficial-vectors"
+  },
+  "kv": {
+    "cacheNamespace": "CACHE"
+  },
+  "durableObjects": {
+    "chatSessions": "CHAT_SESSIONS"
+  },
+  "cors": {
+    "allowedOrigins": ["https://rainbowsmokeofficial.com"]
+  },
+  "featureFlags": {}
+}

@@ -9,11 +9,11 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "dev:mrrainbowsmoke": "wrangler dev --config mrrainbowsmoke/wrangler.toml",
-    "dev:rainbowsmokeofficial": "wrangler dev --config rainbowsmokeofficial.com/wrangler.toml",
+    "dev:mrrainbowsmoke": "wrangler dev --config tenants/mrrainbowsmoke/wrangler.toml",
+    "dev:rainbowsmokeofficial": "wrangler dev --config tenants/rainbowsmokeofficial/wrangler.toml",
     "dev:worker-api": "wrangler dev --config apps/worker-api/wrangler.toml",
-    "deploy:mrrainbowsmoke": "wrangler deploy --config mrrainbowsmoke/wrangler.toml",
-    "deploy:rainbowsmokeofficial": "wrangler deploy --config rainbowsmokeofficial.com/wrangler.toml",
+    "deploy:mrrainbowsmoke": "wrangler deploy --config tenants/mrrainbowsmoke/wrangler.toml",
+    "deploy:rainbowsmokeofficial": "wrangler deploy --config tenants/rainbowsmokeofficial/wrangler.toml",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -25,4 +25,3 @@
     "wrangler": "^3.109.0"
   }
 }
-

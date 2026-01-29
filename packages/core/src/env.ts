@@ -1,19 +1,14 @@
-// packages/core/src/env.ts
+export type TenantId = "mrrainbowsmoke" | "rainbowsmokeofficial";
 
-interface Env {
-  // Example KV binding for tenant configurations
-  KV_TENANT_CONFIG: KVNamespace;
-
-  // Optional: TENANT_ID for single-tenant deployments
-  TENANT_ID?: string;
-
-  // Optional: JSON string mapping hostnames to tenant IDs
+export interface Env {
+  TENANT_ID?: TenantId;
   TENANT_HOSTNAME_MAP?: string;
+  INGEST_TOKEN?: string;
 
-  // Durable Objects for sessions
-  SESSION_DO: DurableObjectNamespace;
+  AI: Ai;
+  CACHE: KVNamespace;
+  VECTORS: VectorizeIndex;
+  CHAT_SESSIONS: DurableObjectNamespace;
 
-  // Other bindings will be added here as needed
+  KV_TENANT_CONFIG?: KVNamespace;
 }
-
-export default Env;

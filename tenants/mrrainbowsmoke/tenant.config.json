@@ -1,0 +1,24 @@
+{
+  "tenantId": "mrrainbowsmoke",
+  "hostnames": ["mrrainbowsmoke.com"],
+  "ai": {
+    "gatewayRoute": "mrrainbowsmoke",
+    "models": {
+      "chat": "@cf/meta/llama-3.1-8b-instruct",
+      "embeddings": "@cf/baai/bge-base-en-v1.5"
+    }
+  },
+  "vectorize": {
+    "index": "mrrainbowsmoke-vectors"
+  },
+  "kv": {
+    "cacheNamespace": "CACHE"
+  },
+  "durableObjects": {
+    "chatSessions": "CHAT_SESSIONS"
+  },
+  "cors": {
+    "allowedOrigins": ["https://mrrainbowsmoke.com"]
+  },
+  "featureFlags": {}
+}
