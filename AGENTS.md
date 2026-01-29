@@ -30,3 +30,16 @@
 ## Security & Configuration Tips
 - Do not commit `.env` files or secrets. Use `.env.example` for shared configuration.
 - Validate new configuration values locally before sharing.
+
+### Primary Documents
+- **[plan.md](../plan.md)** - Master project plan with milestones (now with GitHub links)
+- **[milestone-tracker.md](./milestone-tracker.md)** - Complete task list with checkboxes
+- **[m3-m8-breakdown.md](./m3-m8-breakdown.md)** - Detailed view of M3-M8 tasks
+
+### Architecture & Design
+- **[architecture.md](./architecture.md)** - System design and component interactions
+- **[tenancy.md](./tenancy.md)** - Tenant isolation patterns and enforcement
+- **[testing.md](./testing.md)** - Testing strategy and harness details
+- **[metrics.md](./metrics.md)** - Observability schema and dashboard configurations
+- **[failure-modes.md](./failure-modes.md)** - Documented failure scenarios
+- **[runbooks.md](./runbooks.md)** - Operational procedures
