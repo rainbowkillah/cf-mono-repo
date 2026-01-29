@@ -45,6 +45,8 @@ _Last updated: 2026-01-29_
 ### Architecture & Design
 - **[architecture.md](./architecture.md)** - System design and component interactions
 - **[tenancy.md](./tenancy.md)** - Tenant isolation patterns and enforcement
+- **[streaming.md](./streaming.md)** - SSE streaming contract
+- **[rate-limits.md](./rate-limits.md)** - Rate limiting strategy
 - **[testing.md](./testing.md)** - Testing strategy and harness details
 - **[metrics.md](./metrics.md)** - Observability schema and dashboard configurations
 - **[failure-modes.md](./failure-modes.md)** - Documented failure scenarios

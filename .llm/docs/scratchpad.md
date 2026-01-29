@@ -35,3 +35,11 @@
 ## M1 Additions (Rate Limiting)
 - Added `packages/core/tests/rate-limit-do.test.ts` with mock SqlStorage.
 - Added `docs/rate-limits.md` documenting keying strategy and limits.
+
+## M1 Tests Added
+- Rate limit keying strategy tests in router.
+- Session retention test for ChatSessionDurableObject.
+
+## Admin Updates
+- M1 items checked off in docs/milestone-tracker.md.
+- Agent instructions aligned with streaming/rate-limits docs and M1 status.

@@ -15,6 +15,7 @@
     "deploy:mrrainbowsmoke": "wrangler deploy --config tenants/mrrainbowsmoke/wrangler.toml",
     "deploy:rainbowsmokeofficial": "wrangler deploy --config tenants/rainbowsmokeofficial/wrangler.toml",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.mts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

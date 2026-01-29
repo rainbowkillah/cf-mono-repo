@@ -104,6 +104,7 @@ cloudflare/
 │       ├── project.json
 │       ├── tsconfig.json
 │       └── src/
+│           ├── rate-limit-do.ts
 │           ├── responses.ts
 │           ├── router.ts
 │           ├── session-do.ts
@@ -113,9 +114,11 @@ cloudflare/
 ├── docs/                       ✅ Documentation hub
 │   ├── architecture.md
 │   ├── failure-modes.md
+│   ├── rate-limits.md
 │   ├── local-dev.md
 │   ├── metrics.md
 │   ├── runbooks.md
+│   ├── streaming.md
 │   ├── tenancy.md
 │   ├── testing.md
 │   ├── milestone-tracker.md   ✅ NEW - Complete task list

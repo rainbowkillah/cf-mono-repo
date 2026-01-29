@@ -17,6 +17,8 @@ This repository is a Cloudflare Workers multi-tenant monorepo. It contains the w
 - **`apps/worker-api/`**: Primary Worker application.
 - **`packages/core/`**: Shared core logic (routing, tenancy, DOs).
 - **`tenants/`**: Per-tenant configs (`tenant.config.json`, `wrangler.toml`).
+- **`docs/streaming.md`**: SSE streaming contract.
+- **`docs/rate-limits.md`**: Rate limiting strategy.
 
 ## Usage
 

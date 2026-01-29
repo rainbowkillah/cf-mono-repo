@@ -233,4 +233,59 @@ describe("Router", () => {
       expect(response.headers.get("content-type")).toBe("text/event-stream");
     });
   });
+
+  describe("Rate Limit Keying Strategy", () => {
+    it("should prefer x-user-id over ip", async () => {
+      const router = createRouter();
+      const limiterFetch = vi.fn().mockResolvedValue(new Response("ok"));
+      const env: Env = {
+        ...mockEnv,
+        RATE_LIMITER: {
+          idFromName: vi.fn().mockReturnValue("global"),
+          get: vi.fn().mockReturnValue({ fetch: limiterFetch })
+        } as unknown as DurableObjectNamespace
+      };
+      env.CHAT_SESSIONS.get = vi.fn().mockReturnValue({ fetch: vi.fn().mockResolvedValue(new Response("ok")) });
+
+      const request = new Request("https://example.com/api/chat", {
+        method: "POST",
+        headers: {
+          "x-tenant-id": "mrrainbowsmoke",
+          "x-user-id": "user-123",
+          "cf-connecting-ip": "203.0.113.10"
+        },
+        body: JSON.stringify({ sessionId: "s1", message: "hi" })
+      });
+
+      await router.fetch(request, env);
+      const body = JSON.parse((limiterFetch.mock.calls[0][1] as RequestInit).body as string);
+      expect(body.key).toBe("mrrainbowsmoke:user:user-123");
+    });
+
+    it("should fall back to ip when x-user-id is missing", async () => {
+      const router = createRouter();
+      const limiterFetch = vi.fn().mockResolvedValue(new Response("ok"));
+      const env: Env = {
+        ...mockEnv,
+        RATE_LIMITER: {
+          idFromName: vi.fn().mockReturnValue("global"),
+          get: vi.fn().mockReturnValue({ fetch: limiterFetch })
+        } as unknown as DurableObjectNamespace
+      };
+      env.CHAT_SESSIONS.get = vi.fn().mockReturnValue({ fetch: vi.fn().mockResolvedValue(new Response("ok")) });
+
+      const request = new Request("https://example.com/api/chat", {
+        method: "POST",
+        headers: {
+          "x-tenant-id": "mrrainbowsmoke",
+          "cf-connecting-ip": "203.0.113.10"
+        },
+        body: JSON.stringify({ sessionId: "s1", message: "hi" })
+      });
+
+      await router.fetch(request, env);
+      const body = JSON.parse((limiterFetch.mock.calls[0][1] as RequestInit).body as string);
+      expect(body.key).toBe("mrrainbowsmoke:ip:203.0.113.10");
+    });
+  });
 });

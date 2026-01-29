@@ -42,26 +42,26 @@ This document tracks all milestones (M0-M8), Nx plugin development phases (NX-1 
 ---
 
 ## M1: Chat + Sessions (10 issues)
-**Status:** 📋 Todo  
+**Status:** ✅ In Progress  
 **Focus:** Streaming chat, Durable Object sessions, KV cache, rate limiting
 
 ### API Implementation
-- [ ] [#15](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/15) - Build /chat endpoint with request schema
-- [ ] [#16](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/16) - Define streaming response contract (SSE vs chunked)
+- [x] [#15](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/15) - Build /chat endpoint with request schema
+- [x] [#16](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/16) - Define streaming response contract (SSE vs chunked)
 
 ### Storage & State
-- [ ] [#17](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/17) - Implement Durable Object session store (tenant-scoped)
-- [ ] [#18](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/18) - Add conversation history with retention policy
-- [ ] [#19](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/19) - Implement KV cache layer (tenant-scoped keys)
+- [x] [#17](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/17) - Implement Durable Object session store (tenant-scoped)
+- [x] [#18](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/18) - Add conversation history with retention policy
+- [x] [#19](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/19) - Implement KV cache layer (tenant-scoped keys)
 
 ### Rate Limiting
-- [ ] [#20](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/20) - Implement DO-based rate limiter (per tenant + per IP/user)
-- [ ] [#21](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/21) - Define rate limit keying strategy (tenant+user+ip)
+- [x] [#20](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/20) - Implement DO-based rate limiter (per tenant + per IP/user)
+- [x] [#21](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/21) - Define rate limit keying strategy (tenant+user+ip)
 
 ### Testing
-- [ ] [#22](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/22) - Create streaming behavior tests
-- [ ] [#23](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/23) - Create session isolation tests
-- [ ] [#24](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/24) - Create rate limit enforcement tests
+- [x] [#22](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/22) - Create streaming behavior tests
+- [x] [#23](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/23) - Create session isolation tests
+- [x] [#24](https://github.com/rainbowkillah/cloudflare-mono-repo/issues/24) - Create rate limit enforcement tests
 
 **Exit Criteria:**
 - ✅ Session messages persist for same tenant/session

@@ -10,6 +10,10 @@ export default defineConfig({
       {
         find: /^@packages\/core\/(.*)$/,
         replacement: `${path.resolve(rootDir, "packages/core/src")}/$1`
+      },
+      {
+        find: /^@packages\/core$/,
+        replacement: path.resolve(rootDir, "packages/core/src")
       }
     ]
   },

@@ -3,13 +3,15 @@ _Last updated: 2026-01-29_
 
 ## Project Overview
 
-This is a multi-tenant Cloudflare Workers AI platform built as a monorepo. M0 is in progress with core tenant resolution, routing, and test infrastructure in place. Two tenants are configured: `mrrainbowsmoke` and `rainbowsmokeofficial`.
+This is a multi-tenant Cloudflare Workers AI platform built as a monorepo. M1 is in progress with chat, rate limiting, and streaming contract work underway. Two tenants are configured: `mrrainbowsmoke` and `rainbowsmokeofficial`.
 
 ### Primary Documents
  **[plan.md](../plan.md)** - Master project plan with milestones (now with GitHub links)
  **[milestone-tracker.md](./milestone-tracker.md)** - Complete task list with checkboxes
  **[m3-m8-breakdown.md](./m3-m8-breakdown.md)** - Detailed view of M3-M8 tasks
  **[local-dev.md](./local-dev.md)** - Wrangler local development guide
+ **[streaming.md](./streaming.md)** - SSE streaming contract
+ **[rate-limits.md](./rate-limits.md)** - Rate limiting strategy
 
 ### Architecture & Design
  **[architecture.md](./architecture.md)** - System design and component interactions
@@ -44,6 +46,7 @@ This is a multi-tenant Cloudflare Workers AI platform built as a monorepo. M0 is
       router.ts         # ✅ HTTP router with validation
       responses.ts      # ✅ Response helpers (json, 404, 401)
       session-do.ts     # ✅ ChatSessionDurableObject
+      rate-limit-do.ts  # ✅ RateLimiterDurableObject
     tests/              # ✅ Unit tests (count may vary)
 /tenants/<tenant-id>/
   wrangler.toml         # ✅ Cloudflare deployment config
@@ -78,7 +81,7 @@ This is a multi-tenant Cloudflare Workers AI platform built as a monorepo. M0 is
 - Durable Objects: Tenant ID included in object ID
 - Vectorize: Per-tenant index names in tenant config
 
-## Development Workflow (M0 In Progress)
+## Development Workflow (M1 In Progress)
 
 ### Build & Test Commands
 ```bash
@@ -142,14 +145,15 @@ The project follows a milestone-based approach (M0-M8) defined in `plan.md`:
 8. **M7:** Observability, metrics, QA gates, load tests
 9. **M8:** Repeatable deployment per tenant + drift detection
 
-**Current Status:** 🚧 **M0 In Progress**
+**Current Status:** 🚧 **M1 In Progress**
 
-**M0 Progress:**
+**M1 Progress:**
 - ✅ Monorepo structure with npm workspaces
 - ✅ Tenant resolution middleware (header + env fallback)
 - ✅ HTTP router with type-safe routing
 - ✅ Response helpers (json, 404, 401)
 - ✅ Durable Object for chat sessions
+- ✅ Durable Object rate limiter
 - ✅ Test infrastructure (vitest)
 - ✅ TypeScript strict mode
 - ✅ .env.example templates
@@ -175,15 +179,17 @@ Every component must document:
 - Metrics definitions, logging schema, and dashboard/alert suggestions are first-class deliverables
 - Each milestone requires runnable demo, passing tests, and measurable success criteria
 
-## Testing Strategy (M0 Implemented)
+## Testing Strategy (M1 In Progress)
 
 ### Unit Tests ✅
-- **Status:** 19 tests passing (100%)
+- **Status:** 36 tests passing (100%)
 - **Framework:** Vitest with node environment
 - **Coverage:**
-  - Tenant resolution (6 tests)
-  - Router logic (8 tests)
-  - Response helpers (5 tests)
+  - Tenant resolution
+  - Router logic + rate limiting
+  - Response helpers
+  - Rate limiter DO
+  - Session retention
 - Fully local, no external dependencies
 - Mock tenant contexts and storage adapters
 
