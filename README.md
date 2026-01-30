@@ -266,10 +266,15 @@ Tests cover:
 
 ### Test Coverage
 
-- **19 tests** passing
+- **36 tests** passing (100% pass rate)
 - **Tenant resolution**: 6 tests
-- **Router logic**: 8 tests
-- **Response helpers**: 5 tests
+- **Router logic**: 14 tests
+- **Response helpers**: 7 tests
+- **Rate limiting**: 2 tests
+- **Session retention**: 1 test
+- **Worker exports**: 3 tests
+- **Config validation**: 2 tests
+- **Health check**: 1 test
 
 ## Deployment
 
@@ -304,24 +309,24 @@ npm run deploy:mrrainbowsmoke
 
 ## Current Status
 
-**Milestone:** M0 (Foundation) - ✅ Completing
+**Milestone:** M1 (Sessions + Rate Limiting) - ✅ Complete
 
 **What Works:**
 - ✅ Monorepo structure with npm workspaces
 - ✅ Tenant resolution and validation
 - ✅ HTTP routing with type safety
-- ✅ Durable Objects for sessions
+- ✅ Durable Objects for sessions and rate limiting
 - ✅ Full RAG pipeline (ingest → Vectorize → retrieve)
 - ✅ Streaming chat with Server-Sent Events
 - ✅ Tool calling (vector_search, kv_get)
 - ✅ KV caching
-- ✅ **Test suite: 19/19 passing**
+- ✅ Rate limiting with token bucket algorithm
+- ✅ **Test suite: 36/36 passing (100% pass rate)**
 
-**Next Steps (M1-M8):**
-- AI Gateway integration
-- Rate limiting (Durable Object)
-- Advanced observability
-- Deployment automation
+**Next Steps:**
+- M2: AI Gateway integration for model routing
+- M3: Enhanced RAG with chunking and citations
+- M4-M8: See [docs/m3-m8-breakdown.md](docs/m3-m8-breakdown.md)
 
 ## Documentation
 
